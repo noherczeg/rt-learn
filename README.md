@@ -134,7 +134,7 @@ All CAN logic is isolated here so the module is reusable and testable. It contai
 | `rustfmt.toml`        | Formatting rules (100-column width, spaces). Enforced by `cargo fmt --check`. |
 | `clippy.toml`         | Tunes Clippy (Rust's linter) so its strictest lints don't produce false positives on our domain words. |
 | `deny.toml`           | Supply-chain policy for `cargo-deny`: only permissive licenses allowed, security advisories checked, only trusted dependency sources (crates.io + the pinned Embassy git repos). |
-| `.github/workflows/ci.yml` | Runs the whole gate on every push/PR to `main`: **format → lint → build → license/advisory check → vulnerability audit**. |
+| `.github/workflows/ci.yml` | Runs the whole gate on every push/PR to `master`: **format → lint → build → license/advisory check → vulnerability audit**. |
 | `.vscode/`            | Editor setup: `settings.json` points rust-analyzer at the MCU target and runs clippy on save; `extensions.json` recommends rust-analyzer, the probe-rs debugger, and a TOML extension. |
 
 ---
