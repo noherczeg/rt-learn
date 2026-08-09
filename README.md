@@ -10,6 +10,11 @@ supply-chain checks, and an `async` application structure built on the **Embassy
 If you are new to Rust and/or embedded, read this whole file top to bottom. It explains not only
 *what* each file does, but *why* it exists.
 
+> **📚 Complete beginner?** The [`docs/`](docs/README.md) folder is a full, from-zero learning
+> course: the automotive-embedded industry, the Rust language, `async`/Embassy, the hardware,
+> CAN FD, this repo's architecture, every dependency, the build/flash flow, and the quality
+> gates — each linked to official sources. Start at [`docs/README.md`](docs/README.md).
+
 ---
 
 ## 1. What are we building?
