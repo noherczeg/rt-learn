@@ -1,0 +1,34 @@
+# Cargo configuration for the NUCLEO-C562RE (STM32C562RE, Cortex-M33F).
+#
+# The default build target is the hardware target triple, so plain `cargo build`,
+# `cargo clippy`, `cargo run`, etc. all cross-compile for the MCU.
+
+[build]
+target = "thumbv8m.main-none-eabihf"
+
+[target.thumbv8m.main-none-eabihf]
+# `probe-rs` flashes the ELF over the on-board ST-LINK and streams defmt logs
+# back over RTT. `cargo run` becomes a one-command flash-and-log workflow.
+runner = "probe-rs run --chip STM32C562RE"
+
+rustflags = [
+    # flip-link relocates the stack below the RAM data so a stack overflow faults
+    # deterministically instead of silently corrupting statics. Cheap, invaluable
+    # hardening for safety-relevant firmware.
+    "-C", "linker=flip-link",
+
+    # Linker scripts:
+    #   link.x   -> provided by cortex-m-rt, consumes our memory.x
+    #   defmt.x  -> defmt log-string interning table
+    "-C", "link-arg=-Tlink.x",
+    "-C", "link-arg=-Tdefmt.x",
+
+    # `--nmagic` disables page alignment of sections; required for flip-link and
+    # keeps the image compact on flash-constrained parts.
+    "-C", "link-arg=--nmagic",
+]
+
+[env]
+# Compile-time defmt verbosity. Override per-invocation, e.g.
+#   DEFMT_LOG=info cargo run --release
+DEFMT_LOG = "debug"

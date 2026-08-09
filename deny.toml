@@ -1,0 +1,79 @@
+# cargo-deny configuration — supply-chain, license, and advisory gate.
+# Run locally and in CI with: `cargo deny check`
+#
+# Schema: cargo-deny v0.16+ (advisories/licenses "version = 2").
+
+# ---------------------------------------------------------------------------
+# Security advisories (RustSec). Complements `cargo audit` in CI.
+# In v2, every advisory is an error unless explicitly listed in `ignore`.
+# ---------------------------------------------------------------------------
+[advisories]
+version = 2
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+# Triage window: add `RUSTSEC-YYYY-NNNN` ids here ONLY with a written justification.
+ignore = [
+    # `bare-metal` v0.2.x is deprecated/unmaintained but is pulled transitively by
+    # `cortex-m` v0.7.x (used by cortex-m-rt, Embassy, panic-probe, stm32-metapac).
+    # There is no safe upgrade until the whole cortex-m 0.7 line migrates off it;
+    # it is a maintenance advisory, not an exploitable vulnerability. Re-review when
+    # a cortex-m release drops the `bare-metal` dependency.
+    "RUSTSEC-2026-0110",
+]
+
+# ---------------------------------------------------------------------------
+# Licenses. Permissive-only allow-list; anything not listed fails the check.
+# Strong/viral copyleft (GPL/AGPL/LGPL, etc.) is intentionally absent.
+# ---------------------------------------------------------------------------
+[licenses]
+version = 2
+confidence-threshold = 0.93
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "CC0-1.0",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+]
+
+[licenses.private]
+# This is unpublished application firmware; do not gate our own crate.
+ignore = true
+
+# ---------------------------------------------------------------------------
+# Dependency bans.
+# ---------------------------------------------------------------------------
+[bans]
+# Duplicate versions of the same crate are flagged. Embedded dependency trees
+# (Embassy + PAC + HAL) frequently pull transitive duplicates that are outside
+# our control, so this is a reviewable "warn" rather than a hard "deny". Tighten
+# to "deny" and populate `skip`/`skip-tree` once the tree has been triaged.
+multiple-versions = "warn"
+wildcards = "deny"           # no `*` version requirements
+highlight = "all"
+# Crates that must never appear in the tree (e.g. accidental std allocators,
+# known-bad crates). Extend as policy dictates.
+deny = []
+skip = []
+skip-tree = []
+
+# ---------------------------------------------------------------------------
+# Source control. Only crates.io and the pinned Embassy git repo are trusted.
+# ---------------------------------------------------------------------------
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+# Embassy is consumed from git (pinned rev). Its `stm32-metapac` in turn comes from
+# the generated-PAC repo `stm32-data-generated` (pinned by tag), so both Embassy
+# git origins must be trusted here.
+allow-git = [
+    "https://github.com/embassy-rs/embassy",
+    "https://github.com/embassy-rs/stm32-data-generated",
+]

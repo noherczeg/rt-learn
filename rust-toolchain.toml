@@ -1,0 +1,17 @@
+# Pin an exact toolchain for fully reproducible, deterministic builds.
+# This is a hard requirement for safety-relevant / automotive workflows: every
+# developer and every CI runner must compile with byte-identical tooling.
+#
+# NOTE: Embassy's `main` branch (required for STM32C5 support) ships edition-2024
+# manifests whose newer Cargo syntax an older toolchain cannot parse. Keep this
+# channel recent enough to resolve the pinned Embassy revision.
+[toolchain]
+channel = "1.97.1"
+components = [
+    "rust-src",   # required for building/inspecting core in a bare-metal context
+    "llvm-tools", # objcopy/size/nm via `cargo-binutils`, defmt tooling
+    "clippy",     # static analysis (see src/main.rs lint gate)
+    "rustfmt",    # formatting gate (see rustfmt.toml)
+]
+targets = ["thumbv8m.main-none-eabihf"]
+profile = "minimal"

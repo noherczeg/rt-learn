@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  DEFMT_LOG: debug
+  # NOTE: do NOT set a global `RUSTFLAGS` here. It would override the
+  # `[target.*].rustflags` from .cargo/config.toml (flip-link + linker scripts)
+  # and break the release link. Warnings are gated by the clippy step below.
+
+jobs:
+  ci:
+    name: format · lint · build · supply-chain
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Reads channel/components from rust-toolchain.toml and additionally
+      # guarantees the bare-metal target + required components are installed.
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt, clippy, rust-src, llvm-tools
+          target: thumbv8m.main-none-eabihf
+
+      # Prebuilt binaries for the bare-metal linker and supply-chain tooling.
+      - name: Install tooling (flip-link, cargo-deny, cargo-audit)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: flip-link,cargo-deny,cargo-audit
+
+      - name: Formatting (rustfmt)
+        run: cargo fmt --all --check
+
+      - name: Lint (clippy, warnings = errors)
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Build (release)
+        run: cargo build --release
+
+      - name: Supply chain (cargo-deny)
+        run: cargo deny check
+
+      - name: Vulnerabilities (cargo-audit)
+        # `bare-metal` v0.2.x is an unmaintained (not vulnerable) transitive dep of
+        # cortex-m 0.7.x with no safe upgrade; it is triaged in deny.toml too.
+        run: cargo audit --ignore RUSTSEC-2026-0110

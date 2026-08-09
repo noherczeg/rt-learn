@@ -1,0 +1,15 @@
+# Clippy tuning shared by local runs and CI.
+#
+# `doc-valid-idents` extends (via "..") the built-in allow-list so that the
+# pedantic `clippy::doc_markdown` lint does not flag domain-specific identifiers
+# that appear in doc comments without backticks.
+doc-valid-idents = [
+    "..",
+    "STMicroelectronics",
+    "STM32C562RE",
+    "STM32C5",
+    "NUCLEO-C562RE",
+    "FDCAN",
+    "RTT",
+    "GPIO",
+]

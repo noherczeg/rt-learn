@@ -1,0 +1,27 @@
+# rustfmt configuration — enforced in CI via `cargo fmt --all --check`.
+#
+# Only STABLE options are active below so that the pinned stable toolchain formats
+# without emitting "unstable feature" warnings. The commented block lists the
+# nightly-only options this project would additionally enforce under
+# `cargo +nightly fmt` (import granularity/grouping for maximally explicit imports).
+
+edition = "2021"
+max_width = 100                 # hard line-length ceiling
+hard_tabs = false               # indent with spaces, never hard tabs
+tab_spaces = 4                  # 4 spaces per indent level
+newline_style = "Unix"          # LF only
+use_small_heuristics = "Default"
+reorder_imports = true          # deterministic, explicit import ordering
+reorder_modules = true
+remove_nested_parens = true
+use_field_init_shorthand = true
+use_try_shorthand = true
+
+# --- Nightly-only (uncomment when running `cargo +nightly fmt`) --------------
+# imports_granularity = "Module"     # one `use` per module path
+# group_imports = "StdExternalCrate" # std / external / local import groups
+# format_code_in_doc_comments = true
+# wrap_comments = true
+# comment_width = 100
+# normalize_comments = true
+# imports_layout = "HorizontalVertical"

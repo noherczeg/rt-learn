@@ -1,0 +1,13 @@
+{
+    // Recommended extensions for developing and flashing this firmware.
+    // VS Code prompts to install these when the workspace is opened.
+    "recommendations": [
+        // Rust language server: completion, diagnostics, inlay hints, clippy.
+        "rust-lang.rust-analyzer",
+        // probe-rs debugger: flash + on-chip debugging over the on-board ST-LINK
+        // (matches the `probe-rs run` runner in .cargo/config.toml).
+        "probe-rs.probe-rs-debugger",
+        // TOML support for Cargo.toml / rust-toolchain.toml / deny.toml, etc.
+        "tamasfe.even-better-toml"
+    ]
+}

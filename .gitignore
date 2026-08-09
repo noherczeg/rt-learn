@@ -1,0 +1,21 @@
+# Build artifacts
+/target/
+
+# Rust backup / temp files
+**/*.rs.bk
+*.orig
+
+# probe-rs / debugging artifacts
+*.elf
+*.bin
+*.hex
+*.map
+
+# Editor / OS noise
+.DS_Store
+.idea/
+*.swp
+
+# NOTE: Cargo.lock is intentionally committed. This is a binary (firmware) crate,
+# and pinning the exact dependency graph — including the Embassy git commit — is
+# required for reproducible, audit-able builds.
