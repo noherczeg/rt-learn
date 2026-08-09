@@ -35,10 +35,10 @@ jobs:
           target: thumbv8m.main-none-eabihf
 
       # Prebuilt binaries for the bare-metal linker and supply-chain tooling.
-      - name: Install tooling (flip-link, cargo-deny, cargo-audit)
+      - name: Install tooling (flip-link, cargo-deny)
         uses: taiki-e/install-action@v2
         with:
-          tool: flip-link,cargo-deny,cargo-audit
+          tool: flip-link,cargo-deny
 
       - name: Formatting (rustfmt)
         run: cargo fmt --all --check
@@ -49,10 +49,8 @@ jobs:
       - name: Build (release)
         run: cargo build --release
 
+      # cargo-deny's `advisories` check audits the same RustSec database that
+      # `cargo audit` would, plus licenses/bans/sources — so a separate audit step
+      # is redundant (and both cloning ~/.cargo/advisory-db collide on CI).
       - name: Supply chain (cargo-deny)
         run: cargo deny check
-
-      - name: Vulnerabilities (cargo-audit)
-        # `bare-metal` v0.2.x is an unmaintained (not vulnerable) transitive dep of
-        # cortex-m 0.7.x with no safe upgrade; it is triaged in deny.toml too.
-        run: cargo audit --ignore RUSTSEC-2026-0110

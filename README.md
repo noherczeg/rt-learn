@@ -65,7 +65,7 @@ rt-learn/
 │   └── config.toml          # HOW to build & flash: target, linker, probe-rs runner
 ├── .github/
 │   └── workflows/
-│       └── ci.yml           # Continuous Integration: fmt, clippy, build, deny, audit
+│       └── ci.yml           # Continuous Integration: fmt, clippy, build, cargo-deny
 ├── .vscode/
 │   ├── settings.json        # Editor config: rust-analyzer target + on-save clippy
 │   └── extensions.json      # Recommended extensions (rust-analyzer, probe-rs, TOML)
@@ -134,7 +134,7 @@ All CAN logic is isolated here so the module is reusable and testable. It contai
 | `rustfmt.toml`        | Formatting rules (100-column width, spaces). Enforced by `cargo fmt --check`. |
 | `clippy.toml`         | Tunes Clippy (Rust's linter) so its strictest lints don't produce false positives on our domain words. |
 | `deny.toml`           | Supply-chain policy for `cargo-deny`: only permissive licenses allowed, security advisories checked, only trusted dependency sources (crates.io + the pinned Embassy git repos). |
-| `.github/workflows/ci.yml` | Runs the whole gate on every push/PR to `master`: **format → lint → build → license/advisory check → vulnerability audit**. |
+| `.github/workflows/ci.yml` | Runs the whole gate on every push/PR to `master`: **format → lint → build → license & security-advisory check** (via `cargo-deny`). |
 | `.vscode/`            | Editor setup: `settings.json` points rust-analyzer at the MCU target and runs clippy on save; `extensions.json` recommends rust-analyzer, the probe-rs debugger, and a TOML extension. |
 
 ---
@@ -180,8 +180,9 @@ cargo install probe-rs-tools
 # 3. flip-link — stack-overflow-protecting linker (required by .cargo/config.toml).
 cargo install flip-link
 
-# 4. (optional) the supply-chain tools used by CI, to run the gate locally.
-cargo install cargo-deny cargo-audit
+# 4. (optional) the supply-chain tool used by CI, to run the gate locally.
+#    cargo-deny checks licenses, security advisories, bans, and sources.
+cargo install cargo-deny
 ```
 
 ### Build
@@ -208,10 +209,9 @@ cargo fmt --all --check
 cargo clippy --all-targets -- -D warnings
 cargo build --release
 cargo deny check
-cargo audit --ignore RUSTSEC-2026-0110   # bare-metal is unmaintained w/ no fix; see deny.toml
 ```
 
-If all five pass locally, CI will pass too.
+If all four pass locally, CI will pass too.
 
 ---
 
