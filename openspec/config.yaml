@@ -1,13 +1,29 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Project: rt-learn — a production-grade, zero-warning Embassy firmware TEMPLATE
+  for learning modern automotive/safety-oriented embedded Rust.
+
+  Hardware: NUCLEO-C562RE board, STM32C562RE MCU (Arm Cortex-M33F, 144 MHz),
+  target triple `thumbv8m.main-none-eabihf`. On-board ST-LINK debugger.
+
+  Stack: `#![no_std]` / `#![no_main]` async Rust on the Embassy framework
+  (embassy-executor / embassy-time / embassy-stm32), consumed from git pinned to
+  an exact rev. Logging via `defmt` over RTT; panics via `panic-probe` then abort.
+  Toolchain pinned in rust-toolchain.toml; Cargo.lock committed for reproducibility.
+
+  Runtime behavior today: a single `heartbeat` task toggling the LED on PA5 every
+  500 ms — the smallest Embassy task, meant as a seed for more tasks.
+
+  Quality bar: zero `unsafe` (`#![deny(unsafe_code)]`), strict Clippy
+  (deny all + warn pedantic/nursery/cargo, two documented allows), rustfmt,
+  cargo-deny supply-chain policy, and CI running format → lint → build → deny.
+
+  Build/flash: `cargo build` (target preset), `cargo run --release` flashes via
+  probe-rs using the vendored chipdb/STM32C5_Series.yaml (probe-rs lacks STM32C5).
+
+  Baseline capabilities live in openspec/specs/: heartbeat, build-and-flash,
+  quality-gates. Build change proposals on top of these.
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
