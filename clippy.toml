@@ -9,7 +9,6 @@ doc-valid-idents = [
     "STM32C562RE",
     "STM32C5",
     "NUCLEO-C562RE",
-    "FDCAN",
     "RTT",
     "GPIO",
 ]

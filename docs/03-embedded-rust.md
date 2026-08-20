@@ -50,8 +50,8 @@ need an allocator lives in `core`.
 | ------------------ | --- | ----------------------- |
 | Heap (`Box`, `Vec`, `String`) | No allocator by default | Use **fixed-size** data: `[u8; 2]`, stack buffers. No heap at all. |
 | Threads | No OS scheduler | **`async` tasks** on the Embassy executor (Doc 04). |
-| `println!` | No stdout/console | **`defmt`** logging over RTT (Doc 09). |
-| Files, sockets | No filesystem/network | Talk to hardware directly: GPIO, CAN. |
+| `println!` | No stdout/console | **`defmt`** logging over RTT (Doc 08). |
+| Files, sockets | No filesystem/network | Talk to hardware directly: GPIO, timers, buses. |
 | `std::error`, panics-with-unwind | No unwinder | `panic = "abort"` + `panic-probe`. |
 
 Working without a heap is a *feature* here, not a hardship: no allocator means no
@@ -121,7 +121,7 @@ thumbv8m.main-none-eabihf
 This target is set as the default in [`.cargo/config.toml`](../.cargo/config.toml) so you
 can just type `cargo build` and it cross-compiles automatically. It's also listed in
 [`rust-toolchain.toml`](../rust-toolchain.toml) so the toolchain installs the needed
-pre-compiled `core` for it. More in [09-toolchain-build-flash.md](09-toolchain-build-flash.md).
+pre-compiled `core` for it. More in [08-toolchain-build-flash.md](08-toolchain-build-flash.md).
 
 ---
 
@@ -177,19 +177,19 @@ immediately, instead of corrupting data. Cheap, deterministic safety — very mu
 automotive mindset from Doc 01.
 
 The other linker flags there (`-Tlink.x`, `-Tdefmt.x`, `--nmagic`) are explained in
-[09-toolchain-build-flash.md](09-toolchain-build-flash.md).
+[08-toolchain-build-flash.md](08-toolchain-build-flash.md).
 
 ---
 
 ## 7. Peripherals and the ownership trick
 
 Beyond the CPU, the MCU has **peripherals** — hardware blocks like GPIO ports, timers, and
-the FDCAN controller. Software controls them by reading/writing special memory addresses
+serial buses. Software controls them by reading/writing special memory addresses
 called **registers** (memory-mapped I/O). Poking raw registers is error-prone, so Rust
 embedded uses layers (detailed in Doc 04/05):
 
 - **PAC** (Peripheral Access Crate) — typed, but low-level, register access.
-- **HAL** (Hardware Abstraction Layer) — safe, ergonomic APIs (`Output::new`, `CanConfigurator`).
+- **HAL** (Hardware Abstraction Layer) — safe, ergonomic APIs (e.g. `Output::new` for a GPIO pin).
 
 The clever part: `embassy_stm32::init()` returns a `Peripherals` struct that **owns every
 peripheral exactly once**. When `main` does `Output::new(peripherals.PA5, …)`, pin PA5 is
@@ -204,7 +204,7 @@ ownership system (Doc 02) applied to physical hardware.
 ```rust
 #![no_std]        // no standard library — only `core`
 #![no_main]       // entry point comes from the Embassy/cortex-m-rt vector table
-#![deny(unsafe_code)]   // (lint gate, Doc 10) — forbid `unsafe` crate-wide
+#![deny(unsafe_code)]   // (lint gate, Doc 09) — forbid `unsafe` crate-wide
 
 use defmt_rtt as _;     // link the RTT logging transport (side-effect only)
 use panic_probe as _;   // link the panic handler (side-effect only)

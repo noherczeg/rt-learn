@@ -1,4 +1,4 @@
-# 12 — References (official docs)
+# 11 — References (official docs)
 
 The authoritative sources behind these docs. When embedded Rust moves and a detail here
 drifts, **these win**. Grouped by topic; each is the primary/official source.
@@ -67,13 +67,6 @@ drifts, **these win**. Grouped by topic; each is the primary/official source.
   (find the NUCLEO-C562RE page for the schematic, user manual, and pinout — the source of
   truth for the pin assignments to verify in Doc 05)
 
-## CAN / CAN FD
-
-- **Bosch CAN IP & CAN FD** — https://www.bosch-semiconductors.com/ip-modules/can-ip-modules/
-- **ISO 11898-1** (CAN data link layer, incl. CAN FD) — ISO standard (paywalled)
-- **ISO 11898-2** (high-speed CAN physical layer) — ISO standard (paywalled)
-- **STM32 FDCAN peripheral** — see the STM32C5 reference manual on the ST product page above.
-
 ## Automotive functional safety
 
 - **ISO 26262** (road-vehicle functional safety) — ISO standard (paywalled); overviews
@@ -82,6 +75,6 @@ drifts, **these win**. Grouped by topic; each is the primary/official source.
 
 ---
 
-*If you add a dependency or change a version, update [08-dependencies.md](08-dependencies.md)
+*If you add a dependency or change a version, update [07-dependencies.md](07-dependencies.md)
 and, if the behavior changes, the relevant topic doc — and re-verify against the source
 above.*

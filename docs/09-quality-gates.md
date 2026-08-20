@@ -1,4 +1,4 @@
-# 10 — Quality gates: what makes this "production-grade"
+# 09 — Quality gates: what makes this "production-grade"
 
 A blinking LED can be written in ten sloppy lines. This project is the opposite: a strict,
 reproducible, auditable setup that mirrors safety-critical practice (Doc 01). This doc
@@ -27,6 +27,7 @@ opts into an aggressive set, applied crate-wide:
   `warn` lints must be clean (§4).
 - **`deny(unsafe_code)`** — the flagship rule. `unsafe` disables some of Rust's compile-time
   checks; forbidding it means the whole crate enjoys full memory-safety guarantees (Doc 01).
+  This template contains **zero** `unsafe`, so the gate has **no exceptions** anywhere.
 
 ### The justified exceptions
 
@@ -35,7 +36,6 @@ reason (this *is* the professional pattern — narrow, explained exceptions):
 
 | Exception | Where | Why |
 | --------- | ----- | --- |
-| `#[allow(unsafe_code)]` on `mod irqs` | `can_fd.rs` | `bind_interrupts!` *must* emit `unsafe` interrupt-vector bindings. Fenced to that one module; no app logic runs there. Uses `deny` (not `forbid`) precisely so a local `allow` is permitted. (Doc 04) |
 | `#![allow(clippy::multiple_crate_versions)]` | `main.rs` | Embedded dep trees (Embassy + PAC + HAL) legitimately pull duplicate transitive versions we can't control; `cargo-deny` still surfaces them as a `warn` (§3). |
 | `#![allow(clippy::future_not_send)]` | `main.rs` | The thread-mode executor is single-core; its task futures capture the `!Send` `Spawner` on purpose. The nursery lint doesn't apply to this model. (Doc 04) |
 
@@ -75,11 +75,11 @@ tunes that without weakening real checks:
 
 ```toml
 doc-valid-idents = ["..", "STMicroelectronics", "STM32C562RE", "STM32C5",
-                    "NUCLEO-C562RE", "FDCAN", "RTT", "GPIO"]
+                    "NUCLEO-C562RE", "RTT", "GPIO"]
 ```
 
 The pedantic `doc_markdown` lint flags identifiers in doc comments that "look like code" but
-aren't in backticks. Domain acronyms (FDCAN, GPIO, RTT…) would trip it constantly. This
+aren't in backticks. Domain acronyms (GPIO, RTT…) would trip it constantly. This
 extends (via `".."`) Clippy's built-in allow-list with our terms, so docs read naturally and
 the lint still catches genuine mistakes. Tuning > disabling.
 
@@ -88,7 +88,7 @@ the lint still catches genuine mistakes. Tuning > disabling.
 ## 4. Supply-chain policy — `deny.toml`
 
 `cargo-deny` audits your **dependency tree** for legal and security risk — critical when
-your firmware pulls dozens of transitive crates (Doc 08). It checks four things:
+your firmware pulls dozens of transitive crates (Doc 07). It checks four things:
 
 ### Advisories (security)
 
@@ -101,7 +101,7 @@ ignore = ["RUSTSEC-2026-0110"]  # bare-metal unmaintained via cortex-m 0.7; no f
 
 Checks every crate against the **RustSec** vulnerability database. In v2, any advisory is an
 error unless explicitly `ignore`d **with a written justification** — here the one ignore is
-the unmaintained `bare-metal` transitive crate (Doc 08), with a note to re-review when
+the unmaintained `bare-metal` transitive crate (Doc 07), with a note to re-review when
 cortex-m drops it. This replaces a separate `cargo audit` step (which would collide with
 cargo-deny over the shared advisory DB and is redundant).
 
@@ -128,7 +128,7 @@ wildcards = "deny"           # forbid `*` version requirements → every dep is 
 ```
 
 `wildcards = "deny"` is why `Cargo.toml` keeps an explicit `version = "…"` next to each git
-`rev` (Doc 08). `multiple-versions = "warn"` matches the `clippy::multiple_crate_versions`
+`rev` (Doc 07). `multiple-versions = "warn"` matches the `clippy::multiple_crate_versions`
 allow (§1): unavoidable in embedded, so surfaced not blocked.
 
 ### Sources
@@ -143,7 +143,7 @@ allow-git = ["https://github.com/embassy-rs/embassy",
 
 Only **crates.io** and the two **trusted Embassy git repos** are allowed. A dependency
 sneaking in from some random git URL fails the check — a supply-chain guardrail. The second
-URL is needed because `stm32-metapac` comes from `stm32-data-generated` (Doc 05/08).
+URL is needed because `stm32-metapac` comes from `stm32-data-generated` (Doc 05/07).
 
 ---
 
@@ -170,7 +170,7 @@ Notable details baked in (from the workflow + repo memory):
 - **`-D warnings`** — promotes every Clippy warning (including the `pedantic`/`nursery`
   `warn` lints from §1) to an error. "Zero-warning" is literal.
 - **No global `RUSTFLAGS`** — CI must not set it, or it would override the `.cargo/config.toml`
-  rustflags (flip-link + linker scripts) and break the release link (Doc 09). Warnings are
+  rustflags (flip-link + linker scripts) and break the release link (Doc 08). Warnings are
   gated only via the clippy step.
 - **No separate `cargo audit`** — `cargo deny check`'s advisories cover the same RustSec DB;
   running both collides on the shared `~/.cargo/advisory-db` directory.
@@ -184,10 +184,10 @@ Notable details baked in (from the workflow + repo memory):
 Three things together make the firmware **byte-for-byte reproducible** — the automotive
 requirement from Doc 01 ("rebuild the exact image years later and trust it"):
 
-1. **`rust-toolchain.toml`** — pins the *exact* compiler + components (Doc 09).
+1. **`rust-toolchain.toml`** — pins the *exact* compiler + components (Doc 08).
 2. **`Cargo.lock`** (committed) — pins the *exact* version of every crate, including the
    Embassy git `rev` and all transitive deps.
-3. **Deterministic build settings** — `codegen-units = 1` + LTO in the profiles (Doc 08)
+3. **Deterministic build settings** — `codegen-units = 1` + LTO in the profiles (Doc 07)
    remove build-parallelism-induced variation.
 
 Change any dependency? `Cargo.lock` changes, the diff is visible in review, and CI re-runs
@@ -200,15 +200,15 @@ the whole gate. Nothing drifts silently.
 | Practice here | The habit it teaches |
 | ------------- | -------------------- |
 | `deny(unsafe_code)` + fenced exceptions | Prove safety; make each exception explicit and justified |
-| No `unwrap()` in run loops (Doc 02/06) | Fail loud at boot, stay alive in operation |
-| `overflow-checks = true` (Doc 08) | Catch arithmetic bugs; mark intended wrapping explicitly |
+| No `unwrap()` in run loops (Doc 02) | Fail loud at boot, stay alive in operation |
+| `overflow-checks = true` (Doc 07) | Catch arithmetic bugs; mark intended wrapping explicitly |
 | Permissive-only licenses, trusted sources | Know and control your supply chain |
 | Pinned toolchain + `Cargo.lock` | Reproducible, auditable builds |
 | Zero-warning CI gate | Ship code that passes review, not just compiles |
 
 These are exactly the disciplines that scale from a learning LED to a certified ECU.
 
-**Next:** [11-glossary.md](11-glossary.md) — every term defined · [12-references.md](12-references.md) — all sources.
+**Next:** [10-glossary.md](10-glossary.md) — every term defined · [11-references.md](11-references.md) — all sources.
 
 ---
 

@@ -10,7 +10,7 @@ repository = "https://github.com/noherczeg/rt-learn"
 homepage = "https://github.com/noherczeg/rt-learn"
 documentation = "https://github.com/noherczeg/rt-learn"
 readme = "README.md"
-keywords = ["embassy", "stm32c5", "fdcan", "embedded", "cortex-m"]
+keywords = ["embassy", "stm32c5", "embedded", "cortex-m", "no-std"]
 categories = ["embedded", "no-std"]
 # This is application firmware, never published to crates.io.
 publish = false
@@ -53,8 +53,6 @@ embassy-stm32 = { version = "0.6", git = "https://github.com/embassy-rs/embassy"
     "defmt",
     "stm32c562re",     # <- STM32C562RE chip selection (must match the target above)
     "time-driver-any", # let the HAL pick a hardware timer for embassy-time
-    "exti",
-    "unstable-pac",
 ] }
 
 # ---------------------------------------------------------------------------

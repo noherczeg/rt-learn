@@ -1,10 +1,10 @@
-# 09 — Toolchain, build, flashing, and logging
+# 08 — Toolchain, build, flashing, and logging
 
 This doc is the practical one: the tools you install, what happens when you type
 `cargo build`, how the firmware gets *onto* the chip, and how logs get *back*. It ties
 together [`rust-toolchain.toml`](../rust-toolchain.toml),
 [`.cargo/config.toml`](../.cargo/config.toml), [`build.rs`](../build.rs), and the `defmt`
-stack from Doc 08.
+stack from Doc 07.
 
 ---
 
@@ -29,8 +29,8 @@ profile = "minimal"
 - **`components`** — extra tools installed with the compiler:
   - **`rust-src`** — the source of `core`, needed to build/inspect it for bare metal.
   - **`llvm-tools`** — `objcopy`/`size`/`nm` etc. (via `cargo-binutils`) and `defmt` tooling.
-  - **`clippy`** — the linter (Doc 10).
-  - **`rustfmt`** — the formatter (Doc 10).
+  - **`clippy`** — the linter (Doc 09).
+  - **`rustfmt`** — the formatter (Doc 09).
 - **`targets`** — pre-install the cross-compilation target `thumbv8m.main-none-eabihf`
   (Doc 03) so `cargo build` just works.
 - **`profile = "minimal"`** — install only what's listed, nothing extra.
@@ -53,7 +53,7 @@ cargo install probe-rs-tools
 # flip-link: stack-overflow-protecting linker (required by .cargo/config.toml)
 cargo install flip-link
 
-# cargo-deny (optional locally): the supply-chain gate CI runs (Doc 10)
+# cargo-deny (optional locally): the supply-chain gate CI runs (Doc 09)
 cargo install cargo-deny
 ```
 
@@ -91,7 +91,7 @@ Line by line:
 - **`[build] target`** — makes the MCU triple the default, so you never type `--target`.
 - **`runner`** — defines what `cargo run` executes: `probe-rs run --chip STM32C562RE`. That
   one command flashes the freshly built `.elf` and then streams its logs. The `--chip` must
-  match the `stm32c562re` HAL feature (Doc 08).
+  match the `stm32c562re` HAL feature (Doc 07).
 - **`rustflags`** — flags passed to every compile/link:
   - **`linker=flip-link`** — use flip-link instead of the default linker (Doc 03).
   - **`-Tlink.x`** — use cortex-m-rt's master linker script (which `INCLUDE`s `memory.x`).
@@ -103,7 +103,7 @@ Line by line:
   compile time* (like `RUST_LOG` but zero-cost): with `debug`, `trace!` calls are compiled
   out entirely. Override per run, e.g. `DEFMT_LOG=info cargo run --release`.
 
-> **CI caveat (Doc 10):** these `rustflags` live in `.cargo/config.toml`, **not** in a global
+> **CI caveat (Doc 09):** these `rustflags` live in `.cargo/config.toml`, **not** in a global
 > `RUSTFLAGS` env var. Setting `RUSTFLAGS` in CI would *override* (not extend) these and
 > break the link. So CI never sets `RUSTFLAGS`.
 
@@ -131,7 +131,7 @@ Common commands:
 
 ```bash
 cargo build              # debug build for the MCU
-cargo build --release    # optimized (size) build (Doc 08 profiles)
+cargo build --release    # optimized (size) build (Doc 07 profiles)
 cargo run --release      # build + flash + stream logs (via the probe-rs runner)
 ```
 
@@ -157,19 +157,18 @@ flowchart LR
 2. `probe-rs` talks to the **ST-LINK** over USB using **SWD** (Serial Wire Debug, Arm's 2-pin
    debug protocol), erases the relevant flash sectors, writes your program, and resets the chip.
 3. The firmware runs. Every `info!`/`warn!` writes a compact **defmt** frame (indices + raw
-   bytes) into the **RTT** RAM buffer (Doc 08).
+   bytes) into the **RTT** RAM buffer (Doc 07).
 4. `probe-rs` continuously reads that buffer over SWD and uses the `defmt.x` interning table
    (linked in step §3) to **reconstruct** the human-readable text on your PC.
 
 You should see the LED blink and lines like:
 
 ```
-0.500000 INFO  rt-learn boot: STM32C562RE / Cortex-M33F
-1.000000 INFO  CAN TX: id=0x100 seq=0
-2.000000 INFO  CAN TX: id=0x100 seq=1
+0.000000 INFO  rt-learn boot: STM32C562RE / Cortex-M33F
+0.000000 INFO  heartbeat task spawned
 ```
 
-The leading timestamps come from the `defmt-timestamp-uptime` feature (Doc 08).
+The leading timestamps come from the `defmt-timestamp-uptime` feature (Doc 07).
 
 ---
 
@@ -183,7 +182,7 @@ rust-analyzer would try to check your code for the *host* target and get confuse
 
 ---
 
-## 7. Running the full gate locally (preview of Doc 10)
+## 7. Running the full gate locally (preview of Doc 09)
 
 Before pushing, reproduce what CI checks:
 
@@ -194,9 +193,9 @@ cargo build --release                    # it compiles for the MCU
 cargo deny check                         # licenses + advisories + sources
 ```
 
-If those four pass, CI will too. Details in [10-quality-gates.md](10-quality-gates.md).
+If those four pass, CI will too. Details in [09-quality-gates.md](09-quality-gates.md).
 
-**Next:** [10-quality-gates.md](10-quality-gates.md) — what makes this "production-grade."
+**Next:** [09-quality-gates.md](09-quality-gates.md) — what makes this "production-grade."
 
 ---
 

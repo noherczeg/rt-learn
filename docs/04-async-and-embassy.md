@@ -1,9 +1,9 @@
 # 04 — `async`/`await` and the Embassy framework
 
-This project runs **three things at once** — a heartbeat LED and two CAN tasks — on a
-**single CPU core**, with **no operating system**, **no threads**, and **no locks**. The
-magic that makes that possible is `async`/`await` plus the **Embassy** executor. This doc
-explains both from scratch.
+This project runs a **heartbeat LED task** — and is built so you can add more tasks that all
+run "at once" on a **single CPU core**, with **no operating system**, **no threads**, and
+**no locks**. The magic that makes that possible is `async`/`await` plus the **Embassy**
+executor. This doc explains both from scratch.
 
 ---
 
@@ -54,7 +54,7 @@ async fn heartbeat(mut led: Output<'static>) {
 ```
 
 Between the `.await` and the timer firing, this task is *suspended* — it uses zero CPU. The
-core is free to run the CAN tasks, or to **sleep** to save power.
+core is free to run any other task, or to **sleep** to save power.
 
 ---
 
@@ -71,7 +71,7 @@ works like this:
 3. The executor moves on and polls the next ready task.
 4. When there's nothing to do, the executor puts the CPU to sleep (on Cortex-M, using the
    `WFE`/`WFI` "wait for event/interrupt" instructions) — **no busy-looping**.
-5. An event (a timer expiring, a CAN frame arriving) fires a hardware **interrupt**, which
+5. An event (e.g. a timer expiring) fires a hardware **interrupt**, which
    **wakes** exactly the task waiting on it. Only the woken task is re-polled, not all of them.
 
 Key properties from the official docs, and why they matter here:
@@ -89,19 +89,18 @@ Key properties from the official docs, and why they matter here:
 sequenceDiagram
     participant E as Executor
     participant HB as heartbeat
-    participant TX as tx_task
-    participant HW as Timer/CAN HW
+    participant HW as Timer HW
     E->>HB: poll
     HB->>HW: arm 500ms timer, .await
     HB-->>E: Pending (yield)
-    E->>TX: poll
-    TX->>HW: arm 1s timer, .await
-    TX-->>E: Pending (yield)
     E->>E: nothing ready → CPU sleeps (WFE)
     HW-->>E: interrupt: 500ms elapsed
     E->>HB: wake + poll (resume after .await)
     HB->>HB: toggle LED, loop, .await again
 ```
+
+(With one task the picture is simple; add more `async fn` tasks and the executor interleaves
+them the same way — each yields at its `.await`, each is woken by its own event.)
 
 ---
 
@@ -110,11 +109,11 @@ sequenceDiagram
 [Embassy](https://embassy.dev/book/) ("**Emb**edded **async**") is a whole ecosystem of
 crates that make `async` a first-class option for embedded. This project uses three of them:
 
-| Crate | Role here | Doc 08 detail |
+| Crate | Role here | Doc 07 detail |
 | ----- | --------- | ------------- |
 | **`embassy-executor`** | The async scheduler + the `#[main]`/`#[task]` macros | §on executor |
 | **`embassy-time`** | `Timer`, `Duration`, `Instant` — hardware-timer-backed delays | §on time |
-| **`embassy-stm32`** | The **HAL**: safe drivers for GPIO, FDCAN, clocks, interrupts | §on HAL |
+| **`embassy-stm32`** | The **HAL**: safe drivers for GPIO, clocks, timers, interrupts | §on HAL |
 
 Embassy also provides `embassy-sync` (channels, mutexes for when you *do* need to share),
 `embassy-net`, `embassy-usb`, and more — not used here, but good to know they exist.
@@ -125,9 +124,9 @@ Embassy stacks three layers over the raw silicon. The [Embassy book's "From bare
 async Rust"](https://embassy.dev/book/) walks the same ladder:
 
 ```
-your async tasks         ← what you write (main.rs, can_fd.rs)
+your async tasks         ← what you write (main.rs)
         │
-embassy-stm32  (HAL)     ← safe types: Output, CanConfigurator, Frame …
+embassy-stm32  (HAL)     ← safe types: Output (GPIO), Timer, …
         │
 stm32-metapac  (PAC)     ← typed register access, auto-generated per chip
         │
@@ -137,7 +136,7 @@ raw registers            ← memory-mapped hardware (never touched directly here
 Writing at the **HAL** level (what this repo does) means you say `led.toggle()` instead of
 computing a bitmask and writing a GPIO register by hand. The HAL also auto-enables
 peripheral clocks and applies correct register sequences for *this specific chip* — which
-is why chip support matters so much (Doc 05/08).
+is why chip support matters so much (Doc 05/07).
 
 ---
 
@@ -157,7 +156,7 @@ being "the first task" — it initializes hardware and spawns the others.
 > **Feature flags matter.** `embassy-executor` needs `platform-cortex-m` (the Cortex-M
 > platform, formerly `arch-cortex-m`) and `executor-thread` for `#[main]` to exist. Those
 > are set in `Cargo.toml`; omitting them gives the confusing "could not find `main`" error.
-> This repo already has them (Doc 08).
+> This repo already has them (Doc 07).
 
 ### `#[embassy_executor::task]`
 
@@ -180,45 +179,46 @@ At **startup**, a failure to spawn is genuinely unrecoverable, so panicking (via
 
 ---
 
-## 6. Interrupts and how the CAN tasks wake up
+## 6. Interrupts and how a task wakes up
 
-A GPIO timer or the FDCAN peripheral signals "I have news" by raising a hardware
-**interrupt** — the CPU stops what it's doing and jumps to a handler via the vector table
-(Doc 03). Embassy uses interrupts as the wake source for `async`:
+A peripheral signals "I have news" by raising a hardware **interrupt** — the CPU stops what
+it's doing and jumps to a handler via the vector table (Doc 03). Embassy uses interrupts as
+the wake source for `async`. The heartbeat's timer is the simplest example:
 
-1. `rx_task` calls `rx.read().await` — no frame yet, so it yields; the core may sleep.
-2. A CAN frame arrives; the FDCAN peripheral raises interrupt `FDCAN1_IT0`.
-3. The bound handler runs, stores the frame, and **wakes** `rx_task`.
-4. The executor re-polls `rx_task`, which now returns the frame and logs it.
+1. `heartbeat` calls `Timer::after(…).await` — the deadline isn't reached yet, so it yields;
+   the core may sleep.
+2. The hardware timer counts down and, when it expires, raises a timer interrupt.
+3. Embassy's time-driver handler runs and **wakes** the `heartbeat` task.
+4. The executor re-polls `heartbeat`, which resumes right after the `.await`.
 
-Wiring hardware interrupt vectors to Embassy's handlers requires the
-**`bind_interrupts!`** macro. Because generating interrupt-vector bindings is inherently
-`unsafe`, this repo fences it in a tiny module with a **local** `#[allow(unsafe_code)]`,
-keeping the crate-wide `#![deny(unsafe_code)]` intact (Doc 10):
+The same mechanism drives *any* peripheral. When you add an interrupt-driven peripheral of
+your own (say a button on an EXTI line, or a UART), you connect its interrupt vectors to
+Embassy's handlers with the **`bind_interrupts!`** macro. Because generating interrupt-vector
+bindings is inherently `unsafe`, you fence it in a tiny module with a **local**
+`#[allow(unsafe_code)]`, keeping a crate-wide `#![deny(unsafe_code)]` intact (Doc 09):
 
 ```rust
 #[allow(unsafe_code)]
 mod irqs {
     embassy_stm32::bind_interrupts!(pub struct Irqs {
-        FDCAN1_IT0 => can::IT0InterruptHandler<FDCAN1>;
-        FDCAN1_IT1 => can::IT1InterruptHandler<FDCAN1>;
+        // e.g. an EXTI line or a UART → its Embassy interrupt handler
     });
 }
 ```
 
-FDCAN exposes two interrupt lines (IT0/IT1); both are bound so RX and TX events are
-serviced. That `Irqs` struct is then handed to `CanConfigurator::new(...)` so the HAL knows
-which handlers to use.
+That `Irqs` struct is then handed to the peripheral's constructor so the HAL knows which
+handlers to use. (This template's heartbeat needs none of this — the time driver wires its
+own timer interrupt — so the crate stays 100% safe, with zero `unsafe`.)
 
 ---
 
 ## 7. Tasks vs. one task with `select`/`join`
 
-The Embassy FAQ notes two ways to be concurrent: **multiple tasks** (what this repo uses —
-`heartbeat`, `tx_task`, `rx_task` are independent) or **one task driving several futures**
-with `join`/`select`. Separate tasks are simplest to reason about and let each own its
-peripheral outright; that's why the template splits TX and RX into two tasks after
-`can.split()` hands out independent halves.
+The Embassy FAQ notes two ways to be concurrent: **multiple tasks** or **one task driving
+several futures** with `join`/`select`. This template currently runs a single task
+(`heartbeat`), but as you add work you can pick either model. Separate tasks are simplest to
+reason about and let each own its peripheral outright — a natural fit when, say, a second
+task drives another pin.
 
 ---
 
@@ -230,13 +230,9 @@ flowchart TD
     RT --> MAIN["#[embassy_executor::main]\ncreates Executor, runs main task"]
     MAIN --> INIT["embassy_stm32::init(config)\nclocks + Peripherals"]
     INIT --> LED["Output::new(PA5) → heartbeat task"]
-    INIT --> CAN["can_fd::init(FDCAN1, PB8, PB9)\n→ tx_task + rx_task"]
     LED --> EXEC
-    CAN --> EXEC
     subgraph EXEC[Embassy executor - one core]
       HB[heartbeat: toggle, await 500ms]
-      TXt[tx_task: send frame, await 1s]
-      RXt[rx_task: await frame, log]
     end
     EXEC -->|nothing ready| SLEEP[(CPU sleeps, WFE)]
     SLEEP -->|interrupt| EXEC

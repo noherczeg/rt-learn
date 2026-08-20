@@ -1,4 +1,4 @@
-# 08 — Dependencies: every crate, and why
+# 07 — Dependencies: every crate, and why
 
 This doc walks [`Cargo.toml`](../Cargo.toml) line by line: what each **crate** (Rust
 package/library) is, why this project needs it, how it works, and which **feature flags**
@@ -12,7 +12,7 @@ them concrete.
 - **Crate** — a Rust library or binary. Dependencies are crates.
 - **`Cargo.toml`** — the manifest: declares dependencies, features, and build profiles.
 - **`Cargo.lock`** — the *exact* resolved versions of every crate (direct and transitive).
-  Committed here so builds are reproducible (Doc 10).
+  Committed here so builds are reproducible (Doc 09).
 - **Feature flags** — optional, named bits of a crate you switch on. E.g. `embassy-stm32`'s
   `stm32c562re` feature selects the chip. Features keep crates small: you compile only what
   you use.
@@ -81,7 +81,7 @@ linker script **`link.x`** that consumes our `memory.x`. It's what turns a bare 
 
 > These two also pull in the transitive crate `bare-metal`, which is flagged as
 > unmaintained (RUSTSEC-2026-0110). There's no fix until the whole cortex-m 0.7 line
-> migrates off it, so `deny.toml` documents and ignores that specific advisory (Doc 10).
+> migrates off it, so `deny.toml` documents and ignores that specific advisory (Doc 09).
 
 ---
 
@@ -115,8 +115,8 @@ halts so a debugger can inspect the state.
 - **`print-defmt`** — route the panic message through `defmt` (so it appears in your normal
   log stream) rather than a separate mechanism. `use panic_probe as _;` links it.
 
-Together these three are why Doc 09 can show you readable logs like `CAN TX: id=0x100 seq=3`
-streaming to your terminal over a single USB cable.
+Together these three are why Doc 08 can show you readable logs like
+`rt-learn boot: STM32C562RE / Cortex-M33F` streaming to your terminal over a single USB cable.
 
 ---
 
@@ -147,10 +147,10 @@ HAL (see `time-driver-any` below).
 - **`tick-hz-32_768`** — run the time base at 32,768 Hz (Doc 05): low power, ~30 µs
   resolution, a classic choice. The HAL's time driver must support the chosen rate.
 
-### `embassy-stm32 = "0.6"` (git) — features `defmt`, `stm32c562re`, `time-driver-any`, `exti`, `unstable-pac`
+### `embassy-stm32 = "0.6"` (git) — features `defmt`, `stm32c562re`, `time-driver-any`
 
-The **HAL** (Doc 04/05): safe drivers for GPIO (`Output`), FDCAN (`CanConfigurator`,
-`CanTx`, `CanRx`, `Frame`), clocks (RCC), interrupts (`bind_interrupts!`), and more.
+The **HAL** (Doc 04/05): safe drivers for GPIO (`Output`), clocks (RCC), timers,
+interrupts, and more.
 
 - **`stm32c562re`** — **selects the chip.** This flag makes the HAL pull the right register
   definitions from `stm32-metapac` and enable the correct peripheral versions (Doc 05). It
@@ -158,11 +158,11 @@ The **HAL** (Doc 04/05): safe drivers for GPIO (`Output`), FDCAN (`CanConfigurat
   crates.io `embassy-stm32` 0.6.0 — the reason for the git dependency (§5).
 - **`time-driver-any`** — let the HAL pick any suitable hardware timer to drive
   `embassy-time`. Without a time driver you'd get `undefined symbol: _embassy_time_now`.
-- **`exti`** — enable the **EXTI** (external interrupt/event) controller support, for
-  interrupt-driven GPIO (e.g. a button via `ExtiInput` — a natural next exercise).
-- **`unstable-pac`** — expose the raw PAC for functionality not yet wrapped by the HAL.
-  "Unstable" = its API may change; acceptable for a pinned template.
 - **`defmt`** — logging integration across the HAL.
+
+> As you add peripherals you'll enable more features here — e.g. **`exti`** for
+> interrupt-driven GPIO (a button via `ExtiInput`), or **`unstable-pac`** for raw register
+> access not yet wrapped by the HAL. The heartbeat template needs none of these.
 
 `embassy-stm32` transitively pulls **`stm32-metapac`**, the auto-generated PAC (Doc 05),
 which itself comes from the `stm32-data-generated` git repo — another source `deny.toml`
@@ -185,17 +185,17 @@ The reasoning (also in the manifest comments and repo memory):
    STM32C5 and does **not** expose `stm32c562re`. Chip support lives on Embassy's `main`.
 2. **A moving branch would break reproducibility.** So instead of tracking `main`, it pins an
    exact **`rev`** (commit SHA). Combined with the committed `Cargo.lock`, every build —
-   yours, a teammate's, CI's, one years from now — is **byte-for-byte identical** (Doc 01/10).
+   yours, a teammate's, CI's, one years from now — is **byte-for-byte identical** (Doc 01/09).
 3. **All three Embassy crates share the same `rev`.** Mixing versions (some from git, some
    from crates.io) triggers the infamous `Only one package … may specify the same links
    value` error (Embassy FAQ). One source, one revision — consistent.
 4. **Explicit `version = "…"` is kept** alongside the git `rev` so that `cargo-deny`'s
-   `wildcards = "deny"` policy passes (no `*` version requirements) (Doc 10).
+   `wildcards = "deny"` policy passes (no `*` version requirements) (Doc 09).
 
 > **To upgrade Embassy:** bump the `rev` *deliberately* (never a floating branch), update
 > `Cargo.lock`, and re-run the whole gate (fmt/clippy/build/deny). Because `main` ships
 > edition-2024 manifests, the pinned toolchain must be recent enough to parse them — which
-> is exactly why `rust-toolchain.toml` isn't on an ancient version (Doc 09).
+> is exactly why `rust-toolchain.toml` isn't on an ancient version (Doc 08).
 
 ---
 
@@ -226,11 +226,11 @@ Why these matter here:
   the `.elf` on your PC and is **not** flashed to the chip, so it costs no device flash.
 - **`panic = "abort"`** — no stack unwinder on bare metal (Doc 03).
 - **`overflow-checks = true`** — arithmetic overflow **panics** instead of silently wrapping,
-  even in release. This is a *safety-over-speed* choice (Doc 01) and is precisely why
-  `tx_task` uses `wrapping_add` for its intentional 255→0 counter (Doc 06): "wrapping here
-  is deliberate," everywhere else an accidental overflow is caught.
+  even in release. This is a *safety-over-speed* choice (Doc 01): an accidental overflow is
+  caught rather than silently corrupting state. Where wrapping is genuinely intended (e.g. a
+  cyclic `255→0` counter) you'd write `wrapping_add` to say "wrapping here is deliberate."
 
-**Next:** [09-toolchain-build-flash.md](09-toolchain-build-flash.md) — building & running it.
+**Next:** [08-toolchain-build-flash.md](08-toolchain-build-flash.md) — building & running it.
 
 ---
 

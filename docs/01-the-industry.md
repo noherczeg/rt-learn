@@ -35,14 +35,14 @@ That combination drives everything:
 | Constraint | Consequence for firmware |
 | ---------- | ------------------------ |
 | A bug can kill someone | Correctness > cleverness. Undefined behavior is unacceptable. |
-| −40 °C to +125 °C, vibration, electrical noise | Robust hardware handling; the bus (CAN) is designed for noise immunity. |
+| −40 °C to +125 °C, vibration, electrical noise | Robust hardware handling and defensive firmware. |
 | Millions of units, cost-sensitive | Small, cheap MCUs → every byte of RAM/flash matters. |
 | 15+ year service life, no easy patching | Determinism and reproducibility; you must be able to rebuild the *exact* firmware years later. |
-| Many ECUs must cooperate in real time | A shared, prioritized, robust communication bus: **CAN / CAN FD** (see [06-can-and-canfd.md](06-can-and-canfd.md)). |
+| Many ECUs must cooperate in real time | Deterministic, prioritized scheduling — the async task model this project teaches. |
 
 A modern car contains dozens to **~100+ ECUs** (Electronic Control Units) — small
-computers for the engine, brakes, doors, lights, infotainment — all talking over CAN and
-newer buses. This project simulates a single ECU: a heartbeat plus a CAN FD talker.
+computers for the engine, brakes, doors, lights, infotainment. This project simulates a
+single ECU at its simplest: a heartbeat task proving the scheduler is alive.
 
 ### Functional safety and ISO 26262
 
@@ -58,7 +58,7 @@ repo's habits *mirror* those demands:
 - **Freedom from interference** → tasks own their peripherals; no shared mutable global state.
 - **Supply-chain integrity** → `cargo-deny` gates licenses, advisories, and sources.
 
-These are explained in detail in [10-quality-gates.md](10-quality-gates.md).
+These are explained in detail in [09-quality-gates.md](09-quality-gates.md).
 
 ---
 
@@ -96,7 +96,7 @@ teaches the *mindset* that leads there.
 `rt-learn` is a **learning template**, not a shipping product. It deliberately adopts
 industry practices so that the habits you build here transfer directly to real work:
 
-- Real MCU, real CAN FD, real cross-compilation and flashing — not a simulator.
+- Real MCU, real cross-compilation and flashing — not a simulator.
 - The same tooling professionals use: `probe-rs`, `defmt`, `cargo-deny`, pinned toolchains.
 - A "zero-warning" bar so you learn to write code that *passes review*, not just compiles.
 

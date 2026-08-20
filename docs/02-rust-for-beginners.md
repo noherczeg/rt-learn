@@ -3,9 +3,9 @@
 This is a from-zero tour of the Rust language, focused on **the features you actually see
 in this repo**. It is not a replacement for [The Rust Book](https://doc.rust-lang.org/book/)
 (the free official book), but it front-loads exactly what you need to read
-[`src/main.rs`](../src/main.rs) and [`src/can_fd.rs`](../src/can_fd.rs) with understanding.
+[`src/main.rs`](../src/main.rs) with understanding.
 
-Read this with the source files open in a split view.
+Read this with the source file open in a split view.
 
 ---
 
@@ -43,7 +43,7 @@ changes it.
 
 | Type | Meaning | Example in repo |
 | ---- | ------- | --------------- |
-| `u8`, `u16`, `u32` | unsigned integers of 8/16/32 bits | `HEARTBEAT_ID: u16 = 0x100` |
+| `u8`, `u16`, `u32` | unsigned integers of 8/16/32 bits | a byte buffer `[u8; 4]` |
 | `i32`, `i8` … | signed integers | — |
 | `bool` | `true` / `false` | — |
 | `[u8; 2]` | fixed-size array of 2 bytes | `let payload = [0xAA, sequence];` |
@@ -61,8 +61,8 @@ const HEARTBEAT_PERIOD: Duration = Duration::from_millis(500);
 ```
 
 `const` is a compile-time constant — it has no memory address of its own; the value is
-baked in wherever it's used. Naming magic numbers as `const`s (bitrates, IDs, periods) is
-why `can_fd.rs` is readable.
+baked in wherever it's used. Naming magic numbers as `const`s (periods, sizes, limits) is
+why the code stays readable — e.g. `HEARTBEAT_PERIOD` instead of a bare `500`.
 
 ---
 
@@ -123,7 +123,7 @@ safe because MCU peripherals genuinely do live forever.
 struct Frame { id: u16, data: [u8; 8] } // (illustrative)
 ```
 
-You mostly *use* structs from Embassy here (`Output`, `CanTx`, `Frame`) rather than define
+You mostly *use* structs from Embassy here (e.g. `Output` for a GPIO pin) rather than define
 your own, but the idea is the same: a named bundle of fields.
 
 ### Enums — one of several variants
@@ -154,15 +154,19 @@ This is how Rust does error handling — **no exceptions**:
 enum Result<T, E> { Ok(T), Err(E) }
 ```
 
-`Frame::new_standard(id, &payload)` returns a `Result` because the id/payload might be
-invalid. You *must* deal with both arms. That's why `can_fd.rs` does:
+Many fallible operations return a `Result` — the caller *must* deal with both arms. For
+example, a peripheral read that can fail is handled by `match`ing on the result rather than
+assuming success:
 
 ```rust
-match Frame::new_standard(HEARTBEAT_ID, &payload) {
-    Ok(frame)   => { /* send it */ }
-    Err(_error) => warn!("CAN TX: refused to build frame (invalid payload/id)"),
+match some_fallible_read() {
+    Ok(value)   => { /* use it */ }
+    Err(_error) => warn!("read failed; keeping the loop alive"),
 }
 ```
+
+(The current firmware's `heartbeat` loop has no fallible call, but this is the pattern you
+reach for the moment you add a peripheral that can error.)
 
 ### `match` — exhaustive pattern matching
 
@@ -186,9 +190,10 @@ embedded:
 | `unwrap!(…)` (from `defmt`) | like `unwrap()` but logs efficiently, used at *spawn time* | `spawner.spawn(unwrap!(heartbeat(led)))` |
 
 > **The golden rule you're being taught:** an `.unwrap()` that fails **halts the whole
-> microcontroller**. In a car that's a dead ECU. So the task loops in `can_fd.rs` never
-> `unwrap()` — they `match` and log. The only `unwrap!` calls are at startup, where a
-> failure to even spawn a task genuinely *is* unrecoverable and should stop the boot.
+> microcontroller**. In a car that's a dead ECU. So run-loop tasks should never
+> `unwrap()` — they `match` and log, staying alive through transient errors. The only
+> `unwrap!` calls belong at startup, where a failure to even spawn a task genuinely *is*
+> unrecoverable and should stop the boot (`spawner.spawn(unwrap!(heartbeat(led)))`).
 
 The `_error` / `_timestamp` names: a leading underscore tells the compiler "I'm
 deliberately not using this binding," silencing the unused-variable warning while keeping
@@ -204,7 +209,7 @@ Rust does polymorphism without inheritance.
 You rarely define traits here, but they're everywhere under the surface: `Future` (the
 trait that powers `async`), `defmt::Format` (lets a type be logged with `{:?}`), and the
 `embedded-hal` traits that let generic drivers work across chips. When you see `{:?}` in a
-log — `info!("CAN RX: {} bytes {:?}", data.len(), data)` — that works because `&[u8]`
+log — `info!("buffer = {:?}", data)` for a `&[u8]` — that works because `&[u8]`
 implements `defmt::Format`.
 
 ---
@@ -212,15 +217,15 @@ implements `defmt::Format`.
 ## 7. Functions, modules, and visibility
 
 ```rust
-pub fn init(…) -> (CanTx<'static>, CanRx<'static>) { … }
+fn init(config: Config) -> Peripherals { … }
 ```
 
-- `fn` declares a function; `-> (…, …)` is the return type (here a **tuple** of two values).
-- `pub` makes it **public** — visible outside its module. Without `pub`, items are private
-  to their module.
-- **Modules** (`mod`) group code. `mod can_fd;` in `main.rs` pulls in `can_fd.rs` as a
-  module; `can_fd::init(…)` calls into it. `mod irqs { … }` is an *inline* module used to
-  fence off the one `unsafe` block (see below).
+- `fn` declares a function; `->` gives the return type.
+- `pub` makes an item **public** — visible outside its module. Without `pub`, items are
+  private to their module.
+- **Modules** (`mod`) group code. This crate is small enough to live in a single module
+  (`main.rs`); as it grows you would split code into files and pull them in with
+  `mod <name>;`, then call across with `<name>::<item>`.
 
 `use` brings names into scope so you don't have to write the full path every time:
 `use embassy_time::{Duration, Timer};`.
@@ -232,7 +237,7 @@ Lines starting with `#[…]` or `#![…]` are **attributes** — metadata for th
 - `#![no_std]` (crate-level, note the `!`) — "don't link the standard library." (Doc 03.)
 - `#[embassy_executor::task]` — a **macro** that transforms an `async fn` into a spawnable
   task (Doc 04).
-- `#[allow(unsafe_code)]` / `#![deny(clippy::all)]` — turn lint rules on/off (Doc 10).
+- `#[allow(unsafe_code)]` / `#![deny(clippy::all)]` — turn lint rules on/off (Doc 09).
 
 ---
 
@@ -243,18 +248,17 @@ represents "work that can make progress, pause, and resume." Writing `.await` on
 means "pause here until this is ready, and let other tasks run meanwhile." On this MCU
 there are no OS threads; instead the **Embassy executor** juggles these futures on the
 single CPU core. When the heartbeat task hits `Timer::after(…).await`, it steps aside so
-the CAN tasks can run, and the CPU sleeps if nobody needs it. That's how three "concurrent"
-tasks share one core with no locks and no races.
+any other ready task can run, and the CPU sleeps if nobody needs it. That's how multiple
+"concurrent" tasks share one core with no locks and no races.
 
 ---
 
 ## 9. Macros
 
-Anything ending in `!` is a **macro**, not a function: `info!`, `warn!`, `unwrap!`,
-`bind_interrupts!`. Macros generate code at compile time. `defmt`'s logging macros are
+Anything ending in `!` is a **macro**, not a function: `info!`, `warn!`, `unwrap!`.
+Macros generate code at compile time. `defmt`'s logging macros are
 special: they intern the format string at compile time and only send tiny IDs at runtime
-(see [09-toolchain-build-flash.md](09-toolchain-build-flash.md)). `bind_interrupts!`
-generates the glue that wires hardware interrupt vectors to Embassy's handlers.
+(see [08-toolchain-build-flash.md](08-toolchain-build-flash.md)).
 
 ---
 

@@ -2,11 +2,11 @@
 
 Software choices only make sense once you know the silicon they run on. This doc explains
 the board, the chip, the CPU core, and the peripheral concepts the firmware touches — GPIO,
-clocks, timers, interrupts, and FDCAN.
+clocks, timers, and interrupts.
 
-> ⚠️ **Verify before you flash.** The STM32C5 series is very new. Pin assumptions in this
-> repo (LED on `PA5`, FDCAN1 on `PB8`/`PB9`) follow common Nucleo-64 conventions but
-> **must be confirmed** against the NUCLEO-C562RE schematic and your wiring. See §7.
+> ⚠️ **Verify before you flash.** The STM32C5 series is very new. The pin assumption in this
+> repo (LED on `PA5`) follows common Nucleo-64 convention but **must be confirmed** against
+> the NUCLEO-C562RE schematic. See §7.
 
 ---
 
@@ -16,7 +16,7 @@ clocks, timers, interrupts, and FDCAN.
   connector, headers to reach the pins, a user LED and button, and — importantly — an
   **on-board ST-LINK debugger**. The ST-LINK is a second small chip that lets your laptop
   flash firmware and stream logs over one USB cable, with no external probe needed. This is
-  what [`probe-rs`](09-toolchain-build-flash.md) talks to.
+  what [`probe-rs`](08-toolchain-build-flash.md) talks to.
 - **STM32C562RE** — the *microcontroller* on that board: the actual CPU + memory +
   peripherals your code runs on. This is the thing `memory.x` and the `embassy-stm32`
   `stm32c562re` feature describe.
@@ -36,13 +36,12 @@ Facts (from ST's datasheet, the source for [`memory.x`](../memory.x)):
 | Architecture | **Armv8-M Mainline** with FPU + TrustZone-M | the `thumbv8m.main` in the triple |
 | Flash | **512 KB** @ `0x0800_0000` | `FLASH` region in `memory.x` |
 | SRAM | **128 KB** @ `0x2000_0000` (part ECC-backed) | `RAM` region in `memory.x` |
-| CAN | **1× FDCAN** controller | `can_fd.rs`, `FDCAN1` |
 | Debug | On-board **ST-LINK** (SWD) | `probe-rs run --chip STM32C562RE` |
 
 **STM32** is ST's huge family of Cortex-M microcontrollers. The **C5** line is a newer,
 mainstream/efficiency-oriented series. "Brand new" is the operative phrase: the crates.io
 release of `embassy-stm32` predates it, which is *the* reason this project pulls Embassy
-from git (Doc 08).
+from git (Doc 07).
 
 ### ECC RAM
 
@@ -67,13 +66,14 @@ Armv8-M generation. What matters for this project:
 - **NVIC** — the **Nested Vectored Interrupt Controller**. This is the hardware that
   receives interrupt signals from peripherals, prioritizes them, and dispatches the CPU to
   the right handler via the **vector table**. Embassy's whole wake mechanism (Doc 04) rides
-  on the NVIC; `bind_interrupts!` populates the vector-table slots (`FDCAN1_IT0`, etc.).
+  on the NVIC; `bind_interrupts!` populates the vector-table slots for any interrupt-driven
+  peripheral you add (the heartbeat's timer interrupt is wired by the HAL's time driver).
 - **Sleep instructions** — `WFI`/`WFE` ("wait for interrupt/event") let the core halt until
   something happens. The Embassy thread-mode executor uses these to sleep when idle.
 - **TrustZone-M** — Armv8-M security extension partitioning secure/non-secure worlds. Not
   used by this template, but it's why the architecture is "Mainline" v8-M.
 
-Cortex-M is the workhorse of embedded Rust: `cortex-m` and `cortex-m-rt` (Doc 08) provide
+Cortex-M is the workhorse of embedded Rust: `cortex-m` and `cortex-m-rt` (Doc 07) provide
 the core-level primitives (the reset handler, critical sections, register access).
 
 ---
@@ -104,15 +104,15 @@ let led = Output::new(peripherals.PA5, Level::Low, Speed::Low);
   so `Low` minimizes noise and power. (Fast buses like SPI would use a higher speed.)
 
 `led.toggle()` flips it; under the hood the HAL writes the GPIO output register. Pin names
-follow ST convention: `PA5` = **P**ort **A**, pin **5**; `PB8` = Port B, pin 8.
+follow ST convention: `PA5` = **P**ort **A**, pin **5**.
 
 ### Clocks and the RCC
 
 Every digital block needs a **clock** — a square wave that paces its logic. The **RCC**
 (Reset and Clock Control) peripheral generates and distributes clocks from oscillators and
 **PLLs** (Phase-Locked Loops, which multiply a low frequency up to, say, 144 MHz). Clock
-setup is *critical* for buses like CAN: the bit timing is derived from the peripheral's
-clock, so a wrong clock = a wrong baud rate = no communication.
+setup is *critical* for timing-sensitive peripherals: a serial bus derives its baud rate
+from the peripheral clock, so a wrong clock = a wrong baud rate = no communication.
 
 This template uses defaults:
 
@@ -121,9 +121,9 @@ let config = embassy_stm32::Config::default();
 let peripherals = embassy_stm32::init(config);
 ```
 
-The default clock tree is enough to boot and clock FDCAN for the demo. The code comments
-correctly flag that **production** firmware should configure `config.rcc` (HSE/PLL and the
-`mux.fdcansel` clock source) to match the *exact* bit timing your bus needs. Getting RCC
+The default clock tree is enough to boot and blink the LED. The code comments
+correctly flag that **production** firmware should configure `config.rcc` (HSE/PLL) to match
+the *exact* timing your peripherals need. Getting RCC
 right is one of the most common "it compiles and flashes but doesn't work" issues (the
 Embassy FAQ devotes a section to it).
 
@@ -138,17 +138,17 @@ resolution at very low power. Without a time driver enabled you'd get the classi
 
 ### Interrupts (recap from Doc 04)
 
-Peripherals signal events by raising interrupts into the NVIC. FDCAN has two lines,
-`FDCAN1_IT0` and `FDCAN1_IT1`; both are bound to Embassy handlers so received frames and
-transmit completions wake the right `async` task. This is the bridge between "hardware did
+Peripherals signal events by raising interrupts into the NVIC. For the heartbeat, the
+hardware timer's interrupt is what wakes the task when its delay expires — wired
+automatically by Embassy's time driver. This is the bridge between "hardware did
 something" and "resume my `.await`."
 
 ### DMA (context)
 
 **DMA** (Direct Memory Access) is a controller that moves data between memory and
 peripherals *without* the CPU copying each byte. Embassy leans on DMA heavily for high-rate
-peripherals (its book calls DMA a "first choice"). CAN is a notable exception that doesn't
-need DMA for framing, so this template doesn't configure DMA — but it's a core concept for
+peripherals (its book calls DMA a "first choice"). This template's LED heartbeat doesn't
+need DMA, so none is configured — but it's a core concept for
 UART/SPI/ADC work you'll meet later.
 
 ---
@@ -185,7 +185,7 @@ generates `stm32-metapac`, a **PAC** with typed register definitions for each ch
 
 - Selecting the wrong or missing chip feature breaks the build (the C5 wasn't in crates.io).
 - The generated PAC comes from the `stm32-data-generated` git repo, which `deny.toml` must
-  therefore trust as a source (Doc 08/10).
+  therefore trust as a source (Doc 07/09).
 
 ---
 
@@ -193,16 +193,11 @@ generates `stm32-metapac`, a **PAC** with typed register definitions for each ch
 
 | Signal | Pin | Assumed because | Verify against |
 | ------ | --- | --------------- | -------------- |
-| User LED | `PA5` | Nucleo-64 convention (green LD user LED) | NUCLEO-C562RE schematic |
-| FDCAN1 RX | `PB8` | Classic FDCAN1 mapping | schematic + CAN transceiver wiring |
-| FDCAN1 TX | `PB9` | Classic FDCAN1 mapping | schematic + CAN transceiver wiring |
+| User LED | `PA5` | Nucleo-64 convention (green LD1 user LED) | NUCLEO-C562RE schematic |
 
-If your board differs, change the pins in [`src/main.rs`](../src/main.rs) and
-[`src/can_fd.rs`](../src/can_fd.rs). Also note: CAN needs a **transceiver** (a chip that
-converts the MCU's logic-level TX/RX into the differential CAN-H/CAN-L bus voltages) — the
-MCU pins alone can't drive a real bus. More in [06-can-and-canfd.md](06-can-and-canfd.md).
+If your board differs, change the pin in [`src/main.rs`](../src/main.rs).
 
-**Next:** [06-can-and-canfd.md](06-can-and-canfd.md) — the automotive bus in depth.
+**Next:** [06-architecture.md](06-architecture.md) — how all the files fit together.
 
 ---
 
@@ -211,5 +206,5 @@ MCU pins alone can't drive a real bus. More in [06-can-and-canfd.md](06-can-and-
 - [STM32C562RE product page & datasheet (ST)](https://www.st.com/en/microcontrollers-microprocessors/stm32c5-series.html) — the source of truth for memory, pins, clocks.
 - [NUCLEO-C562RE board page (ST)](https://www.st.com/en/evaluation-tools/) — schematic, user manual, pinout.
 - [Arm Cortex-M33 (Arm)](https://developer.arm.com/Processors/Cortex-M33) — core reference.
-- [`embassy-stm32` API docs](https://docs.embassy.dev/embassy-stm32/) — GPIO, RCC, CAN, timers.
+- [`embassy-stm32` API docs](https://docs.embassy.dev/embassy-stm32/) — GPIO, RCC, timers.
 - [Embassy book → "Understanding metapac"](https://embassy.dev/book/) — how per-chip support is generated.

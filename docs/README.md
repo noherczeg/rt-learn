@@ -8,7 +8,7 @@ You do **not** need to read five books. Read these, in order, and you will under
 what every file, dependency, and line in this repository does and *why* it is there.
 
 Every non-obvious claim links to the **official** source so you can go deeper and so
-the facts stay current. See [12-references.md](12-references.md) for the full link list.
+the facts stay current. See [11-references.md](11-references.md) for the full link list.
 
 ---
 
@@ -25,24 +25,21 @@ Each doc is self-contained enough to revisit later as a reference.
 | 03 | **[03-embedded-rust.md](03-embedded-rust.md)** | `no_std`, `no_main`, cross-compilation, memory, linking, panics | To understand "bare metal" |
 | 04 | **[04-async-and-embassy.md](04-async-and-embassy.md)** | `async`/`await`, futures, the executor, the Embassy framework | To understand the task model |
 | 05 | **[05-the-hardware.md](05-the-hardware.md)** | Arm Cortex-M33, the STM32C562RE, GPIO, clocks, interrupts, DMA | To understand the chip |
-| 06 | **[06-can-and-canfd.md](06-can-and-canfd.md)** | CAN and CAN FD — the automotive bus, in depth | To understand `can_fd.rs` |
-| 07 | **[07-architecture.md](07-architecture.md)** | Why this repo is structured the way it is; file-by-file walkthrough | To connect it all |
-| 08 | **[08-dependencies.md](08-dependencies.md)** | Every dependency: what it is, why we need it, how it works | To understand `Cargo.toml` |
-| 09 | **[09-toolchain-build-flash.md](09-toolchain-build-flash.md)** | Toolchain, build, linking, flashing, `defmt`/RTT logging | To build & run on hardware |
-| 10 | **[10-quality-gates.md](10-quality-gates.md)** | Clippy, rustfmt, cargo-deny, CI, reproducible builds | To understand "production-grade" |
-| 11 | **[11-glossary.md](11-glossary.md)** | Every acronym and term, defined | Whenever you hit a new word |
-| 12 | **[12-references.md](12-references.md)** | All official documentation links | Whenever you want the source |
+| 06 | **[06-architecture.md](06-architecture.md)** | Why this repo is structured the way it is; file-by-file walkthrough | To connect it all |
+| 07 | **[07-dependencies.md](07-dependencies.md)** | Every dependency: what it is, why we need it, how it works | To understand `Cargo.toml` |
+| 08 | **[08-toolchain-build-flash.md](08-toolchain-build-flash.md)** | Toolchain, build, linking, flashing, `defmt`/RTT logging | To build & run on hardware |
+| 09 | **[09-quality-gates.md](09-quality-gates.md)** | Clippy, rustfmt, cargo-deny, CI, reproducible builds | To understand "production-grade" |
+| 10 | **[10-glossary.md](10-glossary.md)** | Every acronym and term, defined | Whenever you hit a new word |
+| 11 | **[11-references.md](11-references.md)** | All official documentation links | Whenever you want the source |
 
 ---
 
 ## The 60-second summary of this project
 
 This firmware runs on a **NUCLEO-C562RE** dev board (an **STM32C562RE** microcontroller
-with an **Arm Cortex-M33** core). It does two things at once:
+with an **Arm Cortex-M33** core). It does one thing:
 
-1. **Blinks an LED** ("heartbeat") to prove the system is alive.
-2. **Speaks CAN FD** — the communication bus used in cars — transmitting one frame per
-   second and logging any frames it receives.
+1. **Blinks an LED** ("heartbeat") to prove the system is alive and the scheduler runs.
 
 It is written in **`async` Rust** on the **Embassy** framework, with an uncompromising
 quality bar: a pinned compiler, strict linting, supply-chain auditing, and a green CI
@@ -59,7 +56,6 @@ flowchart LR
     subgraph BOARD["NUCLEO-C562RE"]
         STLINK["ST-LINK debugger"] --> MCU["STM32C562RE\nCortex-M33"]
         MCU --> LED["heartbeat LED"]
-        MCU --> CAN["CAN FD bus"]
         MCU -->|RTT| RTT
     end
 ```
@@ -69,7 +65,7 @@ flowchart LR
 ## A note on trust and sources
 
 These docs are written against the **exact versions this repo pins** (see
-[08-dependencies.md](08-dependencies.md)). Embedded Rust moves fast; when in doubt,
+[07-dependencies.md](07-dependencies.md)). Embedded Rust moves fast; when in doubt,
 the linked official docs win. If you find a discrepancy, the code + `Cargo.lock` are
 the ground truth for *this* project, and the official docs are the ground truth for
 *the ecosystem*.
