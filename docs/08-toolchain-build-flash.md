@@ -73,7 +73,7 @@ This file tells Cargo *how* to build and run for this board:
 target = "thumbv8m.main-none-eabihf"          # default target → plain `cargo build` cross-compiles
 
 [target.thumbv8m.main-none-eabihf]
-runner = "probe-rs run --chip STM32C562RE"    # `cargo run` = flash + log via probe-rs
+runner = "probe-rs run --chip STM32C562RET6 --chip-description-path chipdb/STM32C5_Series.yaml"
 
 rustflags = [
     "-C", "linker=flip-link",                 # stack-overflow protection (Doc 03)
@@ -89,9 +89,14 @@ DEFMT_LOG = "debug"                           # compile-time log verbosity
 Line by line:
 
 - **`[build] target`** — makes the MCU triple the default, so you never type `--target`.
-- **`runner`** — defines what `cargo run` executes: `probe-rs run --chip STM32C562RE`. That
-  one command flashes the freshly built `.elf` and then streams its logs. The `--chip` must
-  match the `stm32c562re` HAL feature (Doc 07).
+- **`runner`** — defines what `cargo run` executes: `probe-rs run` with the chip name plus a
+  `--chip-description-path`. That one command flashes the freshly built `.elf` and then
+  streams its logs. The `--chip` must match the `stm32c562re` HAL feature (Doc 07).
+  - **`--chip-description-path chipdb/STM32C5_Series.yaml`** — the STM32C5 series is newer
+    than probe-rs's built-in chip database, so the repo ships an ST-derived chip
+    description (flash algorithm + memory map) and points probe-rs at it. This is why
+    `cargo run` works with no CMSIS-pack download or `target-gen` step. See
+    [`chipdb/README.md`](../chipdb/README.md).
 - **`rustflags`** — flags passed to every compile/link:
   - **`linker=flip-link`** — use flip-link instead of the default linker (Doc 03).
   - **`-Tlink.x`** — use cortex-m-rt's master linker script (which `INCLUDE`s `memory.x`).
@@ -153,7 +158,7 @@ flowchart LR
     end
 ```
 
-1. `cargo run` builds the ELF and hands it to `probe-rs run --chip STM32C562RE`.
+1. `cargo run` builds the ELF and hands it to `probe-rs run` (with the bundled chip description).
 2. `probe-rs` talks to the **ST-LINK** over USB using **SWD** (Serial Wire Debug, Arm's 2-pin
    debug protocol), erases the relevant flash sectors, writes your program, and resets the chip.
 3. The firmware runs. Every `info!`/`warn!` writes a compact **defmt** frame (indices + raw

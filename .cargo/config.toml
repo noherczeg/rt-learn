@@ -9,7 +9,13 @@ target = "thumbv8m.main-none-eabihf"
 [target.thumbv8m.main-none-eabihf]
 # `probe-rs` flashes the ELF over the on-board ST-LINK and streams defmt logs
 # back over RTT. `cargo run` becomes a one-command flash-and-log workflow.
-runner = "probe-rs run --chip STM32C562RE"
+#
+# The STM32C5 series is newer than probe-rs's built-in chip database (0.32 stops
+# at STM32C0), so we ship an ST-derived chip description in `chipdb/` and point
+# probe-rs at it with `--chip-description-path`. This makes `cargo run` work with
+# zero manual setup — no CMSIS-pack download, no `target-gen`. See chipdb/README.md.
+# The path is relative to the workspace root (cargo's cwd for the runner).
+runner = "probe-rs run --chip STM32C562RET6 --chip-description-path chipdb/STM32C5_Series.yaml"
 
 rustflags = [
     # flip-link relocates the stack below the RAM data so a stack overflow faults

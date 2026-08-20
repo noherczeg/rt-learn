@@ -175,13 +175,20 @@ cargo build --release  # optimized firmware image
 
 ### Flash & view logs
 
-Plug the board in via USB, then:
+Plug the board into your computer via the **ST-LINK USB-C port (CN1)** — the one on the
+ST-LINK end of the board, next to the tri-color status LEDs (the other USB-C, CN13, is the
+STM32's own "user" USB and is *not* for flashing). Then:
 
 ```bash
 cargo run --release    # flashes the board and prints defmt logs in your terminal
 ```
 
 You should see the LED blinking and the boot log lines (`rt-learn boot: …` / `heartbeat task spawned`).
+
+> **No chip-database setup needed.** The STM32C5 series is newer than probe-rs's built-in
+> chip list, so this repo ships an ST-derived chip description in [`chipdb/`](chipdb/README.md)
+> and `.cargo/config.toml` points probe-rs at it automatically. `cargo run` just works — no
+> CMSIS-pack download, no `target-gen`.
 
 ### Run the same checks CI runs
 
@@ -207,6 +214,8 @@ The STM32C5 series is **very new**. A couple of things worth knowing:
    toolchain is pinned to a recent stable in `rust-toolchain.toml` (an older Cargo cannot
    parse them). When you want newer Embassy, bump the `rev` **deliberately** (never a
    floating branch) and re-run the whole gate.
+   The same newness affects `probe-rs`, which doesn't yet know STM32C5 — handled by the
+   bundled chip description in [`chipdb/`](chipdb/README.md) (see Flash & view logs above).
 2. **Pin assignment (you must verify).** The template assumes the user **LED is on `PA5`**
    (LD1 on the NUCLEO-C562RE). Check this against the board schematic and adjust in
    `src/main.rs` if needed.
