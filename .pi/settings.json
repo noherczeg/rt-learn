@@ -1,0 +1,9 @@
+{
+  "worktreeInit": {
+    "gate": "test ! -d target",
+    "run": {
+      "type": "script",
+      "command": "cargo fetch"
+    }
+  }
+}

@@ -19,3 +19,6 @@
 # NOTE: Cargo.lock is intentionally committed. This is a binary (firmware) crate,
 # and pinning the exact dependency graph — including the Embassy git commit — is
 # required for reproducible, audit-able builds.
+
+# pi dashboard generated knowledge-base index
+/.pi/dashboard/kb/
